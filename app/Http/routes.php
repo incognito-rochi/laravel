@@ -11,11 +11,6 @@
 |
 */
 
-Route::get('/', function () {
-    return view('welcome');
-});
-
-Route::get('challan', 'ChallanController@index');
 
 /*
 |--------------------------------------------------------------------------
@@ -29,5 +24,34 @@ Route::get('challan', 'ChallanController@index');
 */
 
 Route::group(['middleware' => ['web']], function () {
-    //
+
+    // Authentication Routes...
+    Route::get('/login', 'Auth\AuthController@showLoginForm');
+    Route::post('/login', 'Auth\AuthController@login');
+    Route::get('/logout', 'Auth\AuthController@logout');
+
+    // Registration Routes...
+    Route::get('/register', ['uses' => 'Auth\AuthController@showRegistrationForm', 'as' => 'register']);
+    Route::post('/register', 'Auth\AuthController@register');
+
 });
+
+
+
+Route::group(
+    ['middleware' => ['web']], function () {
+
+
+    /**
+     * Home Controller
+    */
+    Route::get('/home', 'HomeController@index');
+    Route::get('/', 'HomeController@index');
+    Route::get('/products', 'ProductsController@index');
+
+});
+
+/**
+ * Auth\Auth Controller
+ */
+Route::get('/logout', ['uses' => 'Auth\AuthController@logout', 'as' => 'logout']);

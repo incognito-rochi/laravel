@@ -3,10 +3,15 @@
 namespace App\Http\Controllers\Auth;
 
 use App\User;
+use Auth;
 use Validator;
 use App\Http\Controllers\Controller;
 use Illuminate\Foundation\Auth\ThrottlesLogins;
 use Illuminate\Foundation\Auth\AuthenticatesAndRegistersUsers;
+use Illuminate\Http\Request;
+use Request as Rq;
+use Session;
+
 
 class AuthController extends Controller
 {
@@ -24,20 +29,139 @@ class AuthController extends Controller
     use AuthenticatesAndRegistersUsers, ThrottlesLogins;
 
     /**
-     * Where to redirect users after login / registration.
+     * Log the user out of the application.
      *
-     * @var string
+     * @return \Illuminate\Http\Response
      */
-    protected $redirectTo = '/';
+    public function logout()
+    {
+        Auth::logout();
+
+        return redirect('/login');
+    }
+
 
     /**
      * Create a new authentication controller instance.
      *
-     * @return void
      */
     public function __construct()
     {
-        $this->middleware('guest', ['except' => 'logout']);
+        $this->middleware('auth', ['except' => 'logout']);
+    }
+
+
+    /**
+     * Show the application login form.
+     *
+     * @codeCoverageIgnore
+     * @return \Illuminate\Http\Response
+     *
+     */
+    public function showLoginForm()
+    {
+        return view('auth.login');
+    }
+
+
+    /**
+     * Handle a login request to the application.
+     *
+     * @param  \Illuminate\Http\Request $request
+     *
+     * @return \Illuminate\Http\Response
+     */
+    public function login(Request $request)
+    {
+        if (Auth::attempt($request->only('email', 'password')))
+        {
+            return redirect('/home');
+        }
+
+        return redirect('/login')->withErrors([
+            'email' => 'The credentials you entered did not match our records. Try again?',
+        ]);
+    }
+
+
+    /**
+     * Handle a registration request for the application.
+     *
+     * @param  \Illuminate\Http\Request $request
+     *
+     * @return \Illuminate\Http\Response
+     */
+    public function register(Request $request)
+    {
+        $validator = $this->validator($request->all());
+
+        if ($validator->fails()) {
+            $this->throwValidationException(
+                $request, $validator
+            );
+        }
+
+        $data             = $request->all();
+        $data['password'] = bcrypt($data['password']);
+
+        // is user email domain blocked?
+        if ($this->isBlockedDomain($data['email'])) {
+            $validator->getMessageBag()->add('email', (string)trans('validation.invalid_domain'));
+            $this->throwValidationException(
+                $request, $validator
+            );
+        }
+
+
+        Auth::login($this->create($request->all()));
+
+        // get the email address
+        if (Auth::user() instanceof User) {
+            $email     = Auth::user()->email;
+            $address   = route('index');
+            $ipAddress = $request->ip();
+            // send email.
+            try {
+                Mail::send(
+                    ['emails.registered-html', 'emails.registered'], ['address' => $address, 'ip' => $ipAddress], function (Message $message) use ($email) {
+                    $message->to($email, $email)->subject('Welcome to Firefly III! ');
+                }
+                );
+            } catch (\Swift_TransportException $e) {
+                Log::error($e->getMessage());
+            }
+
+            // set flash message
+            Session::flash('success', 'You have registered successfully!');
+            Session::flash('gaEventCategory', 'user');
+            Session::flash('gaEventAction', 'new-registration');
+
+            // first user ever?
+            if (User::count() == 1) {
+                $admin = Role::where('name', 'owner')->first();
+                Auth::user()->attachRole($admin);
+            }
+
+
+            return redirect($this->redirectPath());
+        }
+        // @codeCoverageIgnoreStart
+        abort(500, 'Not a user!');
+
+
+        return redirect($this->redirectPath());
+    }
+
+    /**
+     * Show the application registration form.
+     *
+     * @return \Illuminate\Http\Response
+     */
+    public function showRegistrationForm()
+    {
+        $host = Rq::getHttpHost();
+
+        return view('auth.register', compact('host'));
     }
 
     /**

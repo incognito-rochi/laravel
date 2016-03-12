@@ -4,7 +4,7 @@ namespace App\Http\Controllers;
 use DB;
 
 
-class ChallanController extends Controller {
+class ProductsController extends Controller {
 
     /**
      * Display a listing of the resource.
@@ -13,7 +13,7 @@ class ChallanController extends Controller {
      */
     public function index() {
        $result = DB::table('products')->get(); 
-        return view('challan.index')->with('data',$result);
+        return view('products.index')->with('data',$result);
     }
 
 }
